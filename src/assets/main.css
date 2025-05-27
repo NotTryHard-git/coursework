@@ -1,0 +1,201 @@
+
+.page {
+  width: 100%;
+  min-height: 100vh ; 
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.page-title {
+  text-align: center;
+  margin-bottom: 30px;
+  color: #2c3e50;
+}
+
+.card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.table-container {
+    margin-top: 20px;
+}
+footer {
+    margin-top: 30px;
+    padding: 20px 0;
+    
+}
+/* Стили для navbar с border и margin */
+.custom-navbar {
+    margin: 15px;
+}
+/* Стили для поиска ближе к кнопкам */
+.search-container {
+    margin-left: 20px;
+    width: 40%;
+}
+/* Стили для кнопок фильтрации */
+.filter-buttons {
+    margin-bottom: 15px;
+}
+/* Дополнительные стили для лучшего отображения */
+.active-nav-item {
+    color: #fff !important;
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+
+
+/* начало стилей модалки*/
+
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* Выравнивание по верху */
+  padding-top: 5%; /* Отступ сверху */
+  z-index: 1050;
+}
+
+.modal-container {
+  width: 90%;
+  max-width: 800px;
+  animation: modal-appear 0.3s ease-out;
+}
+
+.modal-content {
+  background: white; /* Белый фон */
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 1rem 1.5rem;
+  background: white;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  padding: 1rem 1.5rem;
+  background: white;
+  border-top: 1px solid #e9ecef;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.table-responsive {
+  max-height: 545px;
+  overflow-y: auto;
+}
+
+@keyframes modal-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.btn-close:hover {
+  opacity: 1;
+}
+.section {
+  position: relative;
+  border: 1px solid #ddd;
+  padding: 8px;
+  margin: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.section:hover:not(.disabled) { /* исключается, если уже применён стить .disabled*/
+  background-color: #f8f9fa;
+}
+
+.occupied {
+  background-color: #ffeeba;
+}
+
+.full {
+  background-color: #f8d7da;
+}
+
+.selected:not(.disabled) {
+  border: 2px solid #007bff;
+}
+.disabled {
+  background-color: #f8d7da;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.section-usage {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 4px;
+  background-color: #28a745;
+  transition: width 0.3s;
+}
+
+.product-count {
+  font-size: 0.8rem;
+  color: #666;
+  align-self: flex-end;
+}
+
+.invalid-feedback {
+  display: none;
+  color: #dc3545;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.is-invalid ~ .invalid-feedback,
+.is-invalid ~ .invalid-feedback {
+  display: block;
+}
+
+.is-invalid {
+  border-color: #dc3545;
+}
