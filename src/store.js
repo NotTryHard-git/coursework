@@ -3,35 +3,16 @@ import { defineStore } from "pinia";
 export const useCounterStore = defineStore('counter', {
   state: () => ({
     // Товары в хранилище
-    products: [
-      { id: '771955', dimensions: '1×0.4×3',     name: 'Отбойный молоток', quantity: 1  ,  location: { id: 'A', section: 2 }, type: 'tool' },
-      { id: '423689', dimensions: '1×0.4×3',     name: 'Отбойный молоток', quantity: 1  ,  location: { id: 'A', section: 2 }, type: 'tool' },
-      { id: '991911', dimensions: '1×0.4×3',     name: 'Отбойный молоток', quantity: 1  ,  location: { id: 'A', section: 2 }, type: 'tool' },
-      { id: '896981', dimensions: '1×0.4×3',     name: 'Бур',              quantity: 3  ,  location: { id: 'A', section: 1 }, type: 'tool' },
-      { id: '837348', dimensions: '1×0.4×3',     name: 'Бур',              quantity: 3  ,  location: { id: 'A', section: 1 }, type: 'tool' },
-      { id: '767487', dimensions: '1×0.4×3',     name: 'Отбойный молоток', quantity: 1  ,  location: { id: 'A', section: 1 }, type: 'tool' },
-      { id: '792856', dimensions: '1×0.4×3',     name: 'Бур',              quantity: 3  ,  location: { id: 'A', section: 1 }, type: 'tool' },
-      { id: '484741', dimensions: '1×0.4×3',     name: 'Отбойный молоток', quantity: 1  ,  location: { id: 'A', section: 1 }, type: 'tool' },
-      { id: '385287', dimensions: '1×0.4×3',     name: 'Бур',              quantity: 3  ,  location: { id: 'A', section: 3 }, type: 'tool' },
-      { id: '444467', dimensions: '1×0.4×3',     name: 'Отбойный молоток', quantity: 1  ,  location: { id: 'A', section: 3 }, type: 'tool' },
-      { id: '111111', dimensions: '2×1×0.5',     name: 'Цемент',           quantity: 10 ,  location: { id: 'A', section: 3 }, type: 'material' },
-      { id: '333333', dimensions: '0.5×0.5×0.5', name: 'Кирпич',           quantity: 49 ,  location: { id: 'A', section: 5 }, type: 'material' }
-    ],
+    products: [],
 
     // Журнал операций
-    operations: [
-      { action: 'issue',     id: '00001',  quantity: 40, location: { id: 'A', section: 3 }, date: '20.01.2024 18:00' },
-      { action: 'placement', id: '000018', quantity: 20, location: { id: 'A', section: 3 }, date: '20.02.2024 19:56' },
-      { action: 'issue',     id: '111111', quantity: 40, location: { id: 'A', section: 3 }, date: '20.02.2024 19:50' },
-      { action: 'placement', id: '000020', quantity: 20, location: { id: 'A', section: 3 }, date: '22.04.2024 19:56' }
-    ],
+    placement: [],
+    operationLogs: [],
+    operationLogsLoading: false,
+    operationLogsFilter: 'all', // 'all', 'placement', 'issue'
 
     // Товары для выдачи
-    issueItems: [
-      { id: '1001', dimensions: '1×0.4×3', name: 'Ноутбук Dell XPS', quantity: 2, location: { id: 'A', section: 3 }, type: 'tool' },
-      { id: '1002', dimensions: '1×0.4×3', name: 'Мышь Logitech MX', quantity: 5, location: { id: 'A', section: 3 }, type: 'tool' },
-      { id: '1003', dimensions: '1×0.4×3', name: 'Клавиатура Razer', quantity: 3, location: { id: 'A', section: 3 }, type: 'tool' }
-    ],
+    issueItems: [],
 
     // Временные списки для окна выдачи
     tempIssueItems: [],
@@ -39,9 +20,6 @@ export const useCounterStore = defineStore('counter', {
 
     // Флаг для разной работы LocalModal
     flag: 0,
-
-    //вместимость одной секции 
-    sectionCapacity: 50, 
 
     // Товары для размещения
     placementItems: [],
@@ -58,72 +36,76 @@ export const useCounterStore = defineStore('counter', {
     selectedProductForPlacement: null,
 
     // Активные фильтры
-    activeProductFilter: 'all',
+    activeProductFilter: 0,
     activeOperationFilter: 'all',
     // Стеллажи и их характеристики
-    shelving: [
-      { id: 'A', sections: 10 },
-      { id: 'B', sections: 5 },
-      { id: 'C', sections: 8  }
-    ],
+    shelving: [],
+    sections: [],
+    isDataLoaded: false, // Флаг загрузки данных
+    isLoading: false,     // Флаг процесса загрузки
+
+    selectedProductForPlacement: null,
+    placementFlag: 0,
+
+    user: null,
+    isAuthenticated: false,
+    authLoading: true,
+    csrfToken: null
   }),
 
   getters: {
-    
-    // подсчёт используемого места и общей вместимости, зная , что каждая секция имеет фиксированное количество мест 50
-    shelvingWithUsage() {
-      return this.shelving.map(shelve => ({...shelve,
-        capacity: shelve.sections*this.sectionCapacity,
-        used: (()=>{
-          let total=0;
-          for (let index = 1; index < shelve.sections+1; index++) {
-            total+=this.getSectionUsage(shelve.id,index)
+    shelvingWithUsage: (state) => {
+      if (!state.isDataLoaded) return [];
+      
+      return state.shelving.map(shelve => {
+        let usedVolume = 0;
+        const totalVolume = shelve.width * shelve.height * shelve.length;
+      
+        // Суммируем занятый объем по всем секциям текущего стеллажа
+        shelve.sections.forEach(section => {
+          // Проверяем занята ли секция полностью
+          if (section.is_occupied) {
+            usedVolume += section.width * section.height * section.length;
+          } else {
+            // Суммируем объем товаров в секции
+            const sectionPlacements = state.placement.filter(
+              p => p.shelving_id === shelve.id && p.section_name === section.name
+            );
+
+            sectionPlacements.forEach(item => {
+              usedVolume += item.width * item.height * item.length * item.quantity;
+            });
           }
-        return total})()// Без двух последниъ скобочек не работатет. Они делают из функции немедленно вызываемаю
-      }));
-      },
+        });
 
-    
+        const usagePercent = totalVolume > 0 ? Math.round((usedVolume / totalVolume) * 100) : 0;
 
-    formatDateTime() {
-      const date = new Date();
-      const day = String(date.getDate()).padStart(2, '0');
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const year = date.getFullYear();
-      const hours = String(date.getHours()).padStart(2, '0');
-      const minutes = String(date.getMinutes()).padStart(2, '0');
-      return `${day}.${month}.${year} ${hours}:${minutes}`;
+        return {
+          ...shelve,
+          used: usagePercent,
+          usedVolume: usedVolume,
+          totalVolume: totalVolume,
+        };
+      });
     },
     // Фильтрованные товары
     filteredProducts: (state) => {
       if (state.searchQuery != '') {
         const query = state.searchQuery.toLowerCase()
         return state.products.filter(p =>
-          p.id.toLowerCase().includes(query) ||
-          p.name.toLowerCase().includes(query))
+          p.id.toString().toLowerCase().includes(query) ||
+          p.name.toString().toLowerCase().includes(query) ||
+          p.code.toString().toLowerCase().includes(query)||
+          p.type_name.toString().toLowerCase().includes(query))  
       }
       else {
-        return state.activeProductFilter === 'all'
+        return state.activeProductFilter === 0
           ? state.products
-          : state.products.filter(product => product.type === state.activeProductFilter);
+          : state.products.filter(product => product.type_id === state.activeProductFilter);
       }
 
     },
 
-    // Фильтрованные операции
-    filteredOperations: (state) => {
-      if (state.searchQuery != '') {
-        const query = state.searchQuery.toLowerCase()
-        return state.operations.filter(p =>
-          p.id.toLowerCase().includes(query))
-      }
-      else {
-        return state.activeOperationFilter === 'all'
-          ? state.operations
-          : state.operations.filter(op => op.action === state.activeOperationFilter);
-      }
-
-    },
     // Фильтрованная выдача
     filteredIssueItems: (state) => {
       if (state.searchQueryIssue != '') {
@@ -142,8 +124,10 @@ export const useCounterStore = defineStore('counter', {
       if (state.searchQuery != '') {
         const query = state.searchQuery.toLowerCase()
         return state.unplacedItems.filter(p =>
-          p.id.toLowerCase().includes(query) ||
-          p.name.toLowerCase().includes(query))
+          p.id.toString().toLowerCase().includes(query) ||
+          p.name.toString().toLowerCase().includes(query) ||
+          p.code.toString().toLowerCase().includes(query)||
+          p.type_name.toString().toLowerCase().includes(query)) 
       }
       else {
         return state.unplacedItems;
@@ -153,55 +137,323 @@ export const useCounterStore = defineStore('counter', {
   },
 
   actions: {
+    
+    //Журнал операций
+    // Загрузка логов операций
+    async fetchOperationLogs() {
+      this.operationLogsLoading = true;
+      try {
+        let url = 'http://localhost:8000/api/operation-logs/';
+        
+        if (this.operationLogsFilter !== 'all') {
+          url += `?action=${this.operationLogsFilter}`;
+        }
 
+        const response = await fetch(url, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.operationLogs = data.results || data;
+        }
+      } catch (error) {
+        console.error('Error fetching operation logs:', error);
+      } finally {
+        this.operationLogsLoading = false;
+      }
+    },
+
+    // Установка фильтра логов
+    setOperationLogsFilter(filter) {
+      this.operationLogsFilter = filter;
+      this.fetchOperationLogs();
+    },
+
+    // Создание лога операции
+    async createOperationLog(logData) {
+      try {
+        await this.getCSRFToken();
+        const logDataWithUser = {
+        ...logData,
+        user: this.user?.id // Добавляем ID пользователя из состояния
+        };
+        const response = await fetch('http://localhost:8000/api/operation-logs/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.csrfToken
+          },
+          body: JSON.stringify(logDataWithUser),
+          credentials: 'include'
+        });
+        if (!response.ok) {
+        // Получаем детали ошибки от сервера
+        const errorData = await response.json();
+        console.error('Детали ошибки:', errorData);
+        throw new Error(`Ошибка при создании лога : ${JSON.stringify(errorData)}`);}
+        return response.ok;
+      } catch (error) {
+        console.error('Error creating operation log:', error);
+        return false;
+      }
+    },
+
+
+    //Аунтефикация
+
+    // Получение CSRF токена
+    async getCSRFToken() {
+      try {
+        const response = await fetch('http://localhost:8000/api/auth/csrf/', {
+          method: 'GET',
+          credentials: 'include', // Важно для cookies
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          this.csrfToken = data.csrfToken;
+          return true;
+        } else {
+          console.error('Failed to get CSRF token:', response.status);
+        }
+      } catch (error) {
+        console.error('Error getting CSRF token:', error);
+      }
+      return false;
+    },
+
+    setUser(userData) {
+      this.user = userData
+      this.isAuthenticated = !!userData
+    },
+
+    clearUser() {
+      this.user = null
+      this.isAuthenticated = false
+    },
+
+    async checkAuth() {
+      try {
+        // Получаем CSRF токен перед проверкой аутентификации
+        await this.getCSRFToken();
+        
+        const response = await fetch('http://localhost:8000/api/auth/current-user/', {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'X-CSRFToken': this.csrfToken || ''
+          }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          this.setUser(data.user)
+        } else {
+          this.clearUser()
+        }
+      } catch (error) {
+        this.clearUser()
+      } finally {
+        this.authLoading = false
+      }
+    },
+
+    async login(credentials) {
+      // Получаем CSRF токен перед логином
+      await this.getCSRFToken();
+      
+      try {
+        const response = await fetch('http://localhost:8000/api/auth/login/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.csrfToken || '',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(credentials),
+          credentials: 'include'
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          this.setUser(data.user)
+          // Обновляем CSRF токен после успешного входа
+          await this.getCSRFToken();
+          return { success: true, data }
+        } else {
+          const errorData = await response.json()
+          return { success: false, error: errorData }
+        }
+      } catch (error) {
+        return { success: false, error: 'Ошибка соединения с сервером' }
+      }
+    },
+
+    async logout() {
+      try {
+        // Убедимся, что у нас есть актуальный CSRF токен
+        if (!this.csrfToken) {
+          await this.getCSRFToken();
+        }
+                
+        const response = await fetch('http://localhost:8000/api/auth/logout/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.csrfToken || '',
+            'Accept': 'application/json'
+          },
+          credentials: 'include'
+        })
+        
+        if (response.ok) {
+          this.clearUser()
+          this.csrfToken = null; // Сбрасываем токен после выхода
+          return true;
+        } else {
+          const errorData = await response.json();
+          console.error('Logout failed:', errorData);
+          // Попробуем альтернативный способ - очистка на клиенте
+          this.clearUser();
+          this.csrfToken = null;
+          return false;
+        }
+      } catch (error) {
+        console.error('Logout error:', error);
+        // В случае ошибки все равно очищаем состояние
+        this.clearUser();
+        this.csrfToken = null;
+        return false;
+      }
+    },
+
+
+
+    // API методы
+    // Общий метод для загрузки всех данных
+    async loadAllData() {
+      this.isLoading = true;
+      try {
+        await Promise.all([
+          this.fetchProducts(),
+          this.fetchPlacement(),
+          this.fetchShelving(),
+          this.fetchSection(),
+          this.fetchOperationLogs()
+        ]);
+        this.isDataLoaded = true;
+      } catch (error) {
+        console.error('Error loading all data:', error);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async fetchProducts() {
+      try {
+        const response = await fetch('http://localhost:8000/api/goods/');
+        const data = await response.json();
+        this.products=[];
+        this.unplacedItems=[];  
+        // Разделяем продукты по наличию локации
+        data.results.forEach(product => {
+          if (product.placements && product.placements.length > 0) {
+            this.products.push(product);
+          } else {
+            this.unplacedItems.push(product);
+          }
+        });    
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      }
+    },
+
+   
+    async fetchPlacement() {
+      try {
+        const response = await fetch('http://localhost:8000/api/placement/');
+        const data= await response.json();
+        this.placement = data.results
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      }
+    },
+
+    async fetchShelving() {
+      try {
+        const response = await fetch('http://localhost:8000/api/shelving/');
+        const data= await response.json();
+        this.shelving = data.results
+      } catch (error) {
+        console.error('Error fetching section:', error);
+      }
+    },
+
+    async fetchSection() {
+      try {
+        const response = await fetch('http://localhost:8000/api/section/');
+        const data= await response.json();
+        this.sections=data.results
+      } catch (error) {
+        console.error('Error fetching unplaced items:', error);
+      }
+    },
     //СТЕЛЛАЖИ
     // Получить количество товаров в секции
-    getSectionUsage (shelvingId, section) {
-      let itemsCount = 0;
-      [...this.products, ...this.issueItems].filter(
-        p => p.location?.id === shelvingId && p.location?.section === section
-      ).forEach(p => {
-        itemsCount+=p.quantity
-      }); 
-      return itemsCount;
+    getSectionUsage(shelvingId, index) {
+      if (!this.isDataLoaded) return 0;
+      
+      const section = this.sections.find(s => s.location === shelvingId && s.name === index);
+      if (!section) return 0;
+
+      let used_space = 0;
+
+      if (section.is_occupied) {
+        used_space = section.width * section.height * section.length;
+      } else {
+        this.placement
+          .filter(p => p.shelving_id === shelvingId && p.section_name === index)
+          .forEach(item => {
+            used_space += item.width * item.height * item.length * item.quantity;
+          });
+      }
+      
+      return used_space;
     },
-    // Получить процент заполнения секции
-    getSectionUsagePercent (shelvingId, section){
-      const term= this.getSectionUsage(shelvingId, section)
-      return term/this.sectionCapacity * 100;
+    getSectionUsagePercent(shelvingId, section) {
+      if (!this.isDataLoaded) return 0;
+      
+      const usage = this.getSectionUsage(shelvingId, section.name);
+      const total = section.width * section.length * section.height;
+      return total > 0 ? Math.round(usage / total * 100) : 0;
     },
-    // проверяет занята ли секция стеллажа
-    isSectionOccupied(id, section) {
-      return [...this.products, ...this.issueItems].some(p =>
-          p.location?.id === id && p.location?.section === section
-        );
-    },
-    
-    // Выводит все товары в секции
-    getItemsInSection(id, section){
-      return [...this.products, ...this.issueItems].filter(
-        p => p.location?.id === id && p.location?.section === section
+
+    getItemsInSection(id, section) {
+      if (!this.isDataLoaded) return [];
+      
+      return this.placement.filter(
+        p => p.section === section && p.shelving_id === id
       );
     },
-    // проверяет полностью ли заполнена секция
-    isSectionFull(id, section) {
-      if(this.tempPlacementItems){
-        let term=0
-        this.tempPlacementItems.forEach(p => {
-          term+= p.quantity 
-          ? p.location.id===id && p.location.section===section
-          : term+=0
-        });
-        return this.getSectionUsage(id, section)+term >= this.sectionCapacity;
-      }
-      return this.getSectionUsage(id, section) >= this.store.sectionCapacity;
-    },
+
+    isSectionOccupied(id, section) {
+      if (!this.isDataLoaded) return false;
+      
+      return this.placement.some(p =>
+        p.shelving_id === id && p.section_name === section.name
+      );
+    },   
 
     //ФИЛЬТРЫ
 
     // Установка фильтра товаров
     setProductFilter(filter) {
-      this.activeProductFilter = filter;
+      this.activeProductFilter = parseInt(filter);
     },
 
     // Установка фильтра операций
@@ -212,35 +464,58 @@ export const useCounterStore = defineStore('counter', {
     //ВСЯ ВЫДАЧА
 
     // Добавление товара к выдаче
-    addToIssue(product) {
-      this.issueItems.push({ id: product.id, dimensions: product.dimensions, name: product.name, quantity: product.quantity, location: product.location, type: product.type });
-      this.products.splice(product, 1);
-    },
+    addToIssue(issueItem) {
+      // Создаем уникальный ключ для каждого элемента выдачи
+      const itemKey = `${issueItem.productId}-${issueItem.placementId}`;
+
+      const existingItem = this.issueItems.find(item => 
+        `${item.productId}-${item.placementId}` === itemKey
+      );
+    
+      if (existingItem) {
+        existingItem.quantity += issueItem.quantity;
+      } else {
+        this.issueItems.push({
+          code: issueItem.code,
+          width:issueItem.width,
+          height: issueItem.height,
+          length: issueItem.length,
+          type_id: issueItem.type_id,
+          weight: issueItem.weight,
+          productId: issueItem.productId,
+          productName: issueItem.productName,
+          placementId: issueItem.placementId,
+          sectionId: issueItem.sectionId,
+          shelvingName: issueItem.shelvingName,
+          sectionName: issueItem.sectionName,
+          total_quantity: issueItem.total_quantity,
+          total_quantity_in_section: issueItem.total_quantity_in_section,
+          quantity_to_issue: issueItem.quantity_to_issue
+        });
+      }
+    }, 
     // временное выдача товара из выдачи
-    tempGiveIssueItem(product) {
-      this.tempIssueItems.push({ id: product.id, dimensions: product.dimensions, name: product.name, quantity: product.quantity, location: product.location, type: product.type });
-      this.issueItems.splice(product, 1);
+    tempGiveIssueItem(item) {
+      this.tempIssueItems.push(item);
+      const index = this.issueItems.findIndex(i => 
+        i.id === item.id && 
+        i.placementId === item.placementId
+      );
+      if (index !== -1) {
+        this.issueItems.splice(index, 1);
+      }
     },
-
     // временное удаления товара из выдачи
-    tempRemoveIssueItem(product) {
-      this.tempRemoveIssueItems.push({ id: product.id, dimensions: product.dimensions, name: product.name, quantity: product.quantity, location: product.location, type: product.type });
-      this.issueItems.splice(product, 1);
-    },
-
-    // подтверждения выдачи
-    confirmIssue() {
-      this.tempIssueItems.forEach(p => {
-        this.operations.push({ action: 'issue', id: p.id, quantity: p.quantity, location: p.location, date: this.formatDateTime });
-
-      });
-      this.tempIssueItems = [];
-      this.tempRemoveIssueItems.forEach(p => {
-        this.products.push({ id: p.id, dimensions: p.dimensions, name: p.name, quantity: p.quantity, location: p.location, type: p.type });
-
-      });
-      this.tempRemoveIssueItems = [];
-    },
+    tempRemoveIssueItem(item) {
+      this.tempRemoveIssueItems.push(item);
+      const index = this.issueItems.findIndex(i => 
+        i.id === item.id && 
+        i.placementId === item.placementId
+      );
+      if (index !== -1) {
+        this.issueItems.splice(index, 1);
+      }
+    },  
 
     // отмена выдачи
     cancelIssue() {
@@ -250,11 +525,43 @@ export const useCounterStore = defineStore('counter', {
     },
 
     //ВСЁ РАЗМЕЩЕНИЕ
-
-    // Добавление товара для размещения (временное)
-    addTempPlacementProduct() {
-      this.tempPlacementItems.push({ id: '', name: '', dimensions: '', quantity: 1, location: '', type: '' });
+    
+    async createProduct(productData) {
+      try {
+        const response = await fetch('http://localhost:8000/api/goods/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(productData)
+        });
+      
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Ошибка при создании товара');
+        }
+      
+        return await response.json();
+      } catch (error) {
+        console.error('Error creating product:', error);
+        throw error;
+      }
     },
+    // шаблон товара в зармещении
+    addTempPlacementProduct() {
+      this.tempPlacementItems.push({
+        code: '',
+        name: '',
+        width: 0,
+        height: 0,
+        length: 0,
+        quantity: 1,
+        type_id: '',
+        weight: 0,
+        locations: [] // Массив для хранения выбранных локаций
+      });
+    },
+    
 
     // Удаление товара из временного размещения
     removeTempPlacementProduct(index) {
@@ -269,68 +576,6 @@ export const useCounterStore = defineStore('counter', {
     // Устанавливает текущий товар для размещения
     setSelectedProduct(product) {
       this.selectedProductForPlacement = product;
-    },
-    // Очищает текущий товар для размещения
-    clearSelectedProduct() {
-      this.selectedProductForPlacement = null;
-    },
-    // Подтверждение локации товара работает в 2 режимах
-    confirmProductLocation(location) {
-      if (!this.selectedProductForPlacement) return;
-      // первый режим при вызове из окна Placement
-      this.selectedProductForPlacement.location = location;
-      // второй режим при вызове с Shelving
-      if (this.flag) {
-        this.flag = 0;
-        const p = this.selectedProductForPlacement
-        this.products.push(p);
-        this.unplacedItems.splice(this.selectedProductForPlacement, 1)
-        this.operations.push({
-          action: 'placement',
-          id: p.id,
-          quantity: p.quantity,
-          location: p.location,
-          date: this.formatDateTime
-        });
-      }
-    },
-
-    // Подтверждение размещения
-    confirmPlacement() {
-      // проверка на то, чтобы все необходимые поля были заполнены isValid=false если всё хорошо иначе true
-      const isValid = this.tempPlacementItems.every(p =>
-        p.id &&
-        p.name &&
-        p.dimensions &&
-        p.quantity > 0 &&
-        p.type
-      );
-
-      if (!isValid) {
-        throw new Error('Не все обязательные поля заполнены');
-      }
-
-      
-      // Переносим временные данные в основные
-      this.placementItems = [...this.tempPlacementItems];
-      this.tempPlacementItems = [];
-
-      // Добавляем новые товары в хранилище или в unplacedItems
-      this.placementItems.forEach(p => {
-        if (p.id && p.name && p.dimensions && p.quantity && p.location && p.type) {
-          this.products.push(p);
-          this.operations.push({
-            action: 'placement',
-            id: p.id,
-            quantity: p.quantity,
-            location: p.location,
-            date: this.formatDateTime
-          });
-        } else {
-          this.unplacedItems.push(p);
-        };
-        this.placementItems = [];
-      })
     }
   }
 });

@@ -14,18 +14,33 @@ export default {
       currentSectionItems: [],
       showLocationModal: false,
       sectionModal: null,
-      store: useCounterStore()
+      store: useCounterStore(),
+      isLoading: false,
     }
   },
+  async mounted() {
+    await this.loadData();
+    
+  },
   methods: {
+    async loadData() {
+      this.isLoading = true;
+      try {
+        await this.store.loadAllData();
+      } catch (error) {
+        console.error('Error loading data:', error);
+      } finally {
+        this.isLoading = false;
+      }
+    },
     openLocationModalForProduct(product) {
       this.store.setSelectedProduct(product)
       this.store.flag = 1
       this.showLocationModal = true
     },
-    openSectionModal(shelving, section) {
-      this.currentSection = { shelving, section }
-      this.currentSectionItems = this.store.getItemsInSection(shelving, section)
+    openSectionModal(shelvingID, sectionID) {
+      this.currentSection = { shelving_id: shelvingID, section_id: sectionID }
+      this.currentSectionItems = this.store.getItemsInSection(shelvingID, sectionID)
       
       if (!this.sectionModal) {
         this.sectionModal = new Modal(document.getElementById('sectionModal'))
@@ -38,29 +53,38 @@ export default {
 
 <template>
   <div class="container table-container">
-    <div class="row">
+    <!-- Индикатор загрузки -->
+    <div v-if="isLoading" class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Загрузка...</span>
+      </div>
+      <p class="mt-2">Загрузка данных...</p>
+    </div>
+
+    <div v-else class="row">
       <div class="col-md-6">
         <h3>Стеллажи</h3>
         <div class="shelving-list table-responsive">
           <div v-for="shelve in store.shelvingWithUsage" :key="shelve.id" class="card mb-3">
             <div class="card-header">
-              Стеллаж {{ shelve.id }} (Занято: {{ shelve.used }}/{{ shelve.capacity }})
+              Стеллаж {{ shelve.name }} (Занято: {{ shelve.used }}%)
             </div>
             <div class="card-body">
               <!--  :class= это динамический класс ,который в зависимости от значения булевых переменных перенимает определённые стили. 
                 # если store.isSectionOccupied(shelve.id, section) true, то стиль occupied будет применён -->
-              <div v-for="section in shelve.sections" :key="section" 
-                   class="section" 
+              <div v-for="section in shelve.sections" :key="section" >
+                <div class="section" 
                    :class="{ 
                      'occupied': store.isSectionOccupied(shelve.id, section),
-                     'full': store.isSectionFull(shelve.id, section),
+                     'full': section.is_occupied,
                      'selected': selectedSection?.shelving === shelve.id && selectedSection?.section === section
                    }"
-                   @click="openSectionModal(shelve.id, section)">
-                Секция {{ section }}
+                   @click="openSectionModal(shelve.id, section.id)">
+                Секция {{ section.name }}
                 <div class="section-usage" :style="{ width: store.getSectionUsagePercent(shelve.id, section) + '%' }"></div>
-                <div v-if="store.getItemsInSection(shelve.id, section).length > 0" class="product-count">
-                  {{ store.getSectionUsage(shelve.id, section) }} шт.
+                <div v-if="store.getItemsInSection(shelve.id, section.id).length > 0" class="product-count">
+                  {{ store.getSectionUsagePercent(shelve.id, section)}} %
+                </div>
                 </div>
               </div>
             </div>
@@ -86,10 +110,6 @@ export default {
               <td>{{ product.name }}</td>
               <td>{{ product.quantity }}</td>
               <td>
-              <span v-if="product.location">
-                {{ product.location.id }} - {{ product.location.section }}
-              </span>
-              <span v-else class="text-muted">Не указана</span>
               <button class="btn btn-sm btn-primary" @click="openLocationModalForProduct(product)">
                 Выбрать
               </button>
@@ -105,7 +125,7 @@ export default {
       <div class="modal-dialog">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title">Содержимое секции {{ currentSection?.shelving }} - {{ currentSection?.section }}</h5>
+            <h5 class="modal-title">Содержимое секции  {{ currentSection?.section_id }}</h5>
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
@@ -115,15 +135,13 @@ export default {
                   <th>ID</th>
                   <th>Название</th>
                   <th>Количество</th>
-                  <th>Тип</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="item in currentSectionItems" :key="item.id">
-                  <td>{{ item.id }}</td>
-                  <td>{{ item.name }}</td>
+                  <td>{{ item.product }}</td>
+                  <td>{{ item.product_name }}</td>
                   <td>{{ item.quantity }}</td>
-                  <td>{{ item.type }}</td>
                 </tr>
               </tbody>
             </table>
@@ -137,8 +155,13 @@ export default {
         </div>
       </div>
     </div>
-  
-  <LocationModal :show="showLocationModal" @close="showLocationModal = false"/>
+  <LocationModal 
+    :show="showLocationModal" 
+    :product="this.store.selectedProductForPlacement"
+    :flag="true"
+    @close="showLocationModal = false"
+    @locations-selected="handleLocationsSelected"
+  />
   </div>
 </template>
 
