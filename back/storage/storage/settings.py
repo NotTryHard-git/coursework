@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'drf_spectacular',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -43,11 +44,40 @@ INSTALLED_APPS = [
     'api',
 ]
 REST_FRAMEWORK = {
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 100
+}
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Warehouse Management API',
+    'DESCRIPTION': """
+    # API системы управления складом
+    
+    ## Основные возможности
+    - Управление товарами и их размещением
+    - Учет стеллажей и секций
+    - Отслеживание операций (логирование)
+    - Аутентификация и авторизация
+    
+    ## Аутентификация
+    Система использует сессионную аутентификацию с CSRF защитой.
+    """,
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    
+    # Настройки UI
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+    },
+    
+    # Дополнительные настройки
+    'COMPONENT_SPLIT_REQUEST': True,  # разделение request/response схем
+    'SCHEMA_PATH_PREFIX': '/api/',    # префикс для путей
 }
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
